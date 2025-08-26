@@ -21,11 +21,11 @@
     body{
       margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
       background: radial-gradient(1000px 600px at 10% 10%, #15213a, var(--bg));
-      color:var(--text); display:flex; align-items:center; justify-content:center; padding:24px;
+      color:var(--text); display:flex; align-items:flex-start; justify-content:center; padding:24px; min-height:100vh;
     }
     .app{width:min(1100px, 96vw);}
-    header{display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:16px}
-    .title{display:flex; align-items:center; gap:12px}
+    header{display:flex; gap:16px; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap}
+    .title{display:flex; align-items:center; gap:12px; flex-shrink:0}
     .title h1{font-size:clamp(20px, 3vw, 28px); margin:0}
     .badge{font-size:12px; color:var(--muted)}
 
@@ -46,7 +46,7 @@
     .btn.primary{background:linear-gradient(180deg, #0ea5b5, #0ea5b5 30%, #0b8290); border-color:#0891a3}
     .btn.primary:hover{filter:brightness(1.05)}
 
-    .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; min-width:0}
     .select{background:#0b1222; color:var(--text); border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:8px 10px}
 
     /* Board */
@@ -72,6 +72,50 @@
     .matched .front{background:linear-gradient(180deg, #063a2f, #0c4d3b); border-color:#0ea371}
     .matched .back{background:linear-gradient(180deg, #063a2f, #0c4d3b)}
 
+    /* Win message */
+    .win-message {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #0ea5b5, #10b981);
+      color: white;
+      padding: 32px;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      text-align: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .win-message.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .win-message h2 {
+      margin: 0 0 16px 0;
+      font-size: 28px;
+    }
+    .win-message p {
+      margin: 8px 0;
+      font-size: 18px;
+    }
+    .win-message button {
+      margin-top: 16px;
+      padding: 12px 24px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s ease;
+    }
+    .win-message button:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
     footer{margin-top:16px; display:flex; gap:10px; justify-content:space-between; align-items:center; color:var(--muted)}
 
     /* Focus styles */
@@ -84,6 +128,26 @@
     .cols-8{ grid-template-columns: repeat(8, clamp(48px, 9.5vw, 100px)); }
 
     .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+    /* Responsive fixes */
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .toolbar {
+        justify-content: center;
+      }
+      .stats {
+        justify-content: center;
+      }
+    }
   </style>
 </head>
 <body>
@@ -126,6 +190,15 @@
         <small><a href="#" id="repoLink" style="color:var(--accent)">View Source</a></small>
       </footer>
     </section>
+
+    <!-- Win message modal -->
+    <div id="winMessage" class="win-message">
+      <h2>🎉 Congratulations! 🎉</h2>
+      <p id="winTime"></p>
+      <p id="winTries"></p>
+      <p id="winBest"></p>
+      <button onclick="closeWinMessage()">Play Again</button>
+    </div>
   </div>
 
   <script>
@@ -141,6 +214,11 @@
     const restartBtn = $('#restartBtn');
     const shuffleBtn = $('#shuffleBtn');
     const repoLink = $('#repoLink');
+    const winMessage = $('#winMessage');
+    const winTime = $('#winTime');
+    const winTries = $('#winTries');
+    const winBest = $('#winBest');
+    
     repoLink.href = 'https://github.com/your-username/your-repo'; // <-- set your repo link
 
     // Emoji set large enough for 8x8/2 = 32 unique
@@ -165,6 +243,7 @@
       elapsed: 0,
       timerId: null,
       paused: false,
+      gameStarted: false,
     };
 
     function saveBestIfNeeded() {
@@ -175,9 +254,11 @@
           const updated = best || {};
           updated[state.size] = now;
           localStorage.setItem(bestKey, JSON.stringify(updated));
+          return true; // new best
         }
       }
       renderBest();
+      return false;
     }
 
     function renderBest(){
@@ -194,7 +275,7 @@
     }
 
     function tick(){
-      if (state.paused || !state.startTs) return;
+      if (state.paused || !state.startTs || !state.gameStarted) return;
       state.elapsed = Date.now() - state.startTs;
       timeEl.textContent = formatTime(state.elapsed);
     }
@@ -234,6 +315,29 @@
       return randShuffle(deck);
     }
 
+    function showWinMessage() {
+      const isNewBest = saveBestIfNeeded();
+      winTime.textContent = `Time: ${formatTime(state.elapsed)}`;
+      winTries.textContent = `Attempts: ${state.tries}`;
+      
+      if (isNewBest) {
+        winBest.textContent = "🏆 New Best Time! 🏆";
+        winBest.style.color = '#f59e0b';
+      } else {
+        winBest.textContent = '';
+      }
+      
+      winMessage.classList.add('show');
+    }
+
+    function closeWinMessage() {
+      winMessage.classList.remove('show');
+      newGame(state.size, true);
+    }
+
+    // Make closeWinMessage globally available for the onclick handler
+    window.closeWinMessage = closeWinMessage;
+
     function newGame(size, hideOnStart = false){
       state.size = size;
       state.deck = genDeck(size);
@@ -241,9 +345,10 @@
       state.lock = false;
       state.tries = 0;
       state.matches = 0;
-      state.startTs = null; // will set on first flip
+      state.startTs = null;
       state.elapsed = 0;
       state.paused = false;
+      state.gameStarted = false;
       timeEl.textContent = '00:00';
       triesEl.textContent = '0';
       matchesEl.textContent = '0';
@@ -251,8 +356,22 @@
       pauseBtn.setAttribute('aria-pressed','false');
       renderBest();
       renderBoard();
-      if (hideOnStart) setAllHidden(true); // hide all cards after starting a new/restarted game
-      startTimer(); // timer runs but won't advance until first flip sets startTs
+      
+      if (hideOnStart) {
+        // Show cards briefly, then hide them
+        setTimeout(() => {
+          setAllHidden(true);
+          state.gameStarted = true;
+        }, 1000);
+      } else {
+        // First load - show cards briefly then hide
+        setTimeout(() => {
+          setAllHidden(true);
+          state.gameStarted = true;
+        }, 2000);
+      }
+      
+      startTimer();
     }
 
     function renderBoard(){
@@ -280,7 +399,7 @@
 
         const front = document.createElement('div');
         front.className = 'face front';
-        front.textContent = card.matched ? '✓' : card.icon; // shows when flipped
+        front.textContent = card.matched ? '✓' : card.icon;
 
         const back = document.createElement('div');
         back.className = 'face back';
@@ -299,7 +418,7 @@
     }
 
     function onFlip(id, btn){
-      if (state.paused) return;
+      if (state.paused || !state.gameStarted) return;
       if (state.lock) return;
       const card = getCard(id);
       if (!card || card.matched) return;
@@ -334,9 +453,9 @@
 
         // Win check
         if (state.matches === (state.size*state.size)/2){
-          saveBestIfNeeded();
-          // brief win pulse
-          boardEl.animate([{filter:'brightness(1)'},{filter:'brightness(1.3)'},{filter:'brightness(1)'}],{duration:700});
+          setTimeout(() => {
+            showWinMessage();
+          }, 500);
         }
       } else {
         // Not a match → flip back after delay
@@ -374,40 +493,41 @@
       });
     }
 
-    function setAllHidden(on){
+    function setAllHidden(hidden){
       // Flip all cards to show their backs (hidden) or fronts (revealed)
       [...boardEl.querySelectorAll('.card')].forEach(cardEl => {
         const btn = cardEl.querySelector('button');
-        cardEl.classList.toggle('flipped', on);
         const card = getCard(cardEl.dataset.id);
-        if (on) {
-          btn.setAttribute('aria-label', 'Hidden card');
-        } else {
-          btn.setAttribute('aria-label', `Revealed ${card.icon}`);
+        if (!card.matched) {
+          cardEl.classList.toggle('flipped', !hidden);
+          if (hidden) {
+            btn.setAttribute('aria-label', 'Hidden card');
+          } else {
+            btn.setAttribute('aria-label', `Revealed ${card.icon}`);
+          }
         }
       });
-    });
     }
 
     // Controls
     pauseBtn.addEventListener('click', ()=>{
-      if (!state.startTs) return; // no-op until game started
+      if (!state.startTs || !state.gameStarted) return; // no-op until game started
       if (state.paused) { resumeTimer(); } else { pauseTimer(); }
     });
 
     restartBtn.addEventListener('click', ()=>{
+      winMessage.classList.remove('show');
       newGame(state.size, true);
-    });
     });
 
     shuffleBtn.addEventListener('click', ()=>{
+      winMessage.classList.remove('show');
       newGame(Number(sizeSel.value), true);
-    });
     });
 
     sizeSel.addEventListener('change', e=>{
+      winMessage.classList.remove('show');
       newGame(Number(e.target.value), true);
-    });
     });
 
     // Start
@@ -415,7 +535,7 @@
       const last = JSON.parse(localStorage.getItem(storeKey) || 'null');
       const startSize = last?.size || 4;
       sizeSel.value = String(startSize);
-      // First load: show faces up (revealed); subsequent actions will hide on start
+      // First load: show faces up briefly, then hide
       newGame(startSize, false);
       startTimer();
     })();
