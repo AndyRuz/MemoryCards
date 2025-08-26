@@ -383,13 +383,13 @@
 
       state.deck.forEach((card, i) => {
         const cell = document.createElement('div');
-        cell.className = 'card';
+        cell.className = 'card flipped'; // Start with cards flipped (showing icons)
         cell.setAttribute('role','gridcell');
         cell.dataset.id = card.id;
 
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.setAttribute('aria-label', 'Hidden card');
+        btn.setAttribute('aria-label', `Revealed ${card.icon}`);
         btn.addEventListener('click', () => onFlip(card.id, btn));
         btn.addEventListener('keydown', (e)=>{
           if (e.key === 'Enter' || e.code === 'Space' || e.key === ' '){
@@ -499,6 +499,8 @@
         const btn = cardEl.querySelector('button');
         const card = getCard(cardEl.dataset.id);
         if (!card.matched) {
+          // When hidden=true, we want flipped=false (showing back/question mark)
+          // When hidden=false, we want flipped=true (showing front/icon)
           cardEl.classList.toggle('flipped', !hidden);
           if (hidden) {
             btn.setAttribute('aria-label', 'Hidden card');
