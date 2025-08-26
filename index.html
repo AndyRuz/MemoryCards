@@ -501,10 +501,11 @@
         if (!card.matched) {
           // When hidden=true, we want flipped=false (showing back/question mark)
           // When hidden=false, we want flipped=true (showing front/icon)
-          cardEl.classList.toggle('flipped', !hidden);
           if (hidden) {
+            cardEl.classList.remove('flipped');
             btn.setAttribute('aria-label', 'Hidden card');
           } else {
+            cardEl.classList.add('flipped');
             btn.setAttribute('aria-label', `Revealed ${card.icon}`);
           }
         }
