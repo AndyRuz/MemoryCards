@@ -357,20 +357,7 @@
       renderBest();
       renderBoard();
       
-      if (hideOnStart) {
-        // Show cards briefly, then hide them
-        setTimeout(() => {
-          setAllHidden(true);
-          state.gameStarted = true;
-        }, 1000);
-      } else {
-        // First load - show cards briefly then hide
-        setTimeout(() => {
-          setAllHidden(true);
-          state.gameStarted = true;
-        }, 2000);
-      }
-      
+      // Cards stay visible until first click - no automatic hiding
       startTimer();
     }
 
@@ -418,15 +405,26 @@
     }
 
     function onFlip(id, btn){
-      if (state.paused || !state.gameStarted) return;
-      if (state.lock) return;
+      if (state.paused) return;
       const card = getCard(id);
       if (!card || card.matched) return;
 
-      // Start timer on first flip
-      if (!state.startTs) {
+      // On first click, hide all other cards and start the game
+      if (!state.gameStarted) {
+        state.gameStarted = true;
         state.startTs = Date.now();
+        
+        // Hide all cards except the one being clicked
+        [...boardEl.querySelectorAll('.card')].forEach(cardEl => {
+          if (cardEl.dataset.id !== id) {
+            cardEl.classList.remove('flipped');
+            const btnEl = cardEl.querySelector('button');
+            btnEl.setAttribute('aria-label', 'Hidden card');
+          }
+        });
       }
+
+      if (state.lock) return;
 
       // Prevent double-clicking the same button as second pick
       if (state.firstPick && state.firstPick.id === id) return;
@@ -520,17 +518,17 @@
 
     restartBtn.addEventListener('click', ()=>{
       winMessage.classList.remove('show');
-      newGame(state.size, true);
+      newGame(state.size);
     });
 
     shuffleBtn.addEventListener('click', ()=>{
       winMessage.classList.remove('show');
-      newGame(Number(sizeSel.value), true);
+      newGame(Number(sizeSel.value));
     });
 
     sizeSel.addEventListener('change', e=>{
       winMessage.classList.remove('show');
-      newGame(Number(e.target.value), true);
+      newGame(Number(e.target.value));
     });
 
     // Start
@@ -538,8 +536,8 @@
       const last = JSON.parse(localStorage.getItem(storeKey) || 'null');
       const startSize = last?.size || 4;
       sizeSel.value = String(startSize);
-      // First load: show faces up briefly, then hide
-      newGame(startSize, false);
+      // Cards stay visible until first click
+      newGame(startSize);
       startTimer();
     })();
 
