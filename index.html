@@ -234,7 +234,7 @@
       return randShuffle(deck);
     }
 
-    function newGame(size){
+    function newGame(size, hideOnStart = false){
       state.size = size;
       state.deck = genDeck(size);
       state.firstPick = state.secondPick = null;
@@ -251,6 +251,7 @@
       pauseBtn.setAttribute('aria-pressed','false');
       renderBest();
       renderBoard();
+      if (hideOnStart) setAllHidden(true); // hide all cards after starting a new/restarted game
       startTimer(); // timer runs but won't advance until first flip sets startTs
     }
 
@@ -373,6 +374,21 @@
       });
     }
 
+    function setAllHidden(on){
+      // Flip all cards to show their backs (hidden) or fronts (revealed)
+      [...boardEl.querySelectorAll('.card')].forEach(cardEl => {
+        const btn = cardEl.querySelector('button');
+        cardEl.classList.toggle('flipped', on);
+        const card = getCard(cardEl.dataset.id);
+        if (on) {
+          btn.setAttribute('aria-label', 'Hidden card');
+        } else {
+          btn.setAttribute('aria-label', `Revealed ${card.icon}`);
+        }
+      });
+    });
+    }
+
     // Controls
     pauseBtn.addEventListener('click', ()=>{
       if (!state.startTs) return; // no-op until game started
@@ -380,24 +396,27 @@
     });
 
     restartBtn.addEventListener('click', ()=>{
-      newGame(state.size);
+      newGame(state.size, true);
+    });
     });
 
     shuffleBtn.addEventListener('click', ()=>{
-      newGame(Number(sizeSel.value));
+      newGame(Number(sizeSel.value), true);
+    });
     });
 
     sizeSel.addEventListener('change', e=>{
-      newGame(Number(e.target.value));
+      newGame(Number(e.target.value), true);
+    });
     });
 
     // Start
     (function init(){
-      // Restore last chosen size if you want
       const last = JSON.parse(localStorage.getItem(storeKey) || 'null');
       const startSize = last?.size || 4;
       sizeSel.value = String(startSize);
-      newGame(startSize);
+      // First load: show faces up (revealed); subsequent actions will hide on start
+      newGame(startSize, false);
       startTimer();
     })();
 
